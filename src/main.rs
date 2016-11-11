@@ -1,4 +1,8 @@
 extern crate gtk;
+extern crate glib;
+extern crate serde_json;
+
+mod config;
 
 use std::cell::RefCell;
 
@@ -9,7 +13,7 @@ use gtk::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-enum ItemValue {
+pub enum ItemValue {
     File(String),
     Command(String),
     Application(String),
@@ -17,7 +21,7 @@ enum ItemValue {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Item {
+pub struct Item {
     key: char,
     text: String,
     value: ItemValue,
@@ -74,15 +78,7 @@ fn main() {
     let tree = create_and_setup_view();
     tree.set_enable_search(false);
 
-    let data = vec![Item {
-        key: 'a',
-        text: "test".to_string(),
-        value: ItemValue::Index(vec![Item {
-            key: 'b',
-            text: "run pwd".to_string(),
-            value: ItemValue::Command("pwd".to_string()),
-        }]),
-    }];
+    let data = config::load_config().unwrap();
     let model = create_and_fill_model(&data);
 
     tree.set_model(Some(&model));
