@@ -70,6 +70,12 @@ fn main() {
         gtk::main_quit();
         Inhibit(false)
     });
+    window.connect_key_press_event(|_, key| {
+        if key.get_keyval() == 65307 { // esc
+            gtk::main_quit();
+        }
+        Inhibit(false)
+    });
     window.connect_delete_event(|_, _| {
         gtk::main_quit();
         Inhibit(false)
