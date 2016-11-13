@@ -7,10 +7,7 @@ mod config;
 use std::cell::RefCell;
 
 use gtk::prelude::*;
-use gtk::{
-    CellRendererText, ListStore, TreeView, TreeViewColumn,
-    Window, WindowType
-};
+use gtk::{CellRendererText, ListStore, TreeView, TreeViewColumn, Window, WindowType};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ItemValue {
@@ -71,7 +68,8 @@ fn main() {
         Inhibit(false)
     });
     window.connect_key_press_event(|_, key| {
-        if key.get_keyval() == 65307 { // esc
+        if key.get_keyval() == 65307 {
+            // esc
             gtk::main_quit();
         }
         Inhibit(false)
@@ -93,14 +91,15 @@ fn main() {
     tree.connect_key_press_event(move |tree_view, key| {
         let mut keyval = key.get_keyval();
 
-        if keyval == 65293 { // enter
+        if keyval == 65293 {
+            // enter
             let selection = tree_view.get_selection();
             if let Some((model, iter)) = selection.get_selected() {
                 keyval = model.get_value(&iter, 0).get::<String>().unwrap().pop().unwrap() as u32;
             }
         }
 
-        let mut index_swap:Option<Vec<Item>> = None;
+        let mut index_swap: Option<Vec<Item>> = None;
         for d in index.borrow().iter() {
             if d.key as u32 == keyval {
                 println!("{} {}", key.get_keyval(), d.key);
@@ -108,11 +107,11 @@ fn main() {
                     ItemValue::Command(ref cmd) => {
                         println!("{}", cmd);
                         gtk::main_quit();
-                    },
+                    }
                     ItemValue::Index(ref new_index) => {
                         tree_view.set_model(Some(&create_and_fill_model(&new_index)));
                         index_swap = Some((*new_index).clone());
-                    },
+                    }
                     _ => (),
                 }
                 break;
