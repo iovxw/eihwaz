@@ -5,9 +5,28 @@ extern crate serde_json;
 mod config;
 
 use std::cell::RefCell;
+use std::process::Command;
 
 use gtk::prelude::*;
-use gtk::{CellRendererText, ListStore, TreeView, TreeViewColumn, Window, WindowType};
+use gtk::{CellRendererText, ListStore, TreeView, TreeViewColumn, Window, WindowType,
+          MessageDialog, MessageType, DialogFlags, ButtonsType};
+
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+                move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ItemValue {
@@ -88,7 +107,7 @@ fn main() {
     tree.set_model(Some(&model));
 
     let index = RefCell::new(data);
-    tree.connect_key_press_event(move |tree_view, key| {
+    tree.connect_key_press_event(clone!(window => move |tree_view, key| {
         let mut keyval = key.get_keyval();
 
         if keyval == 65293 {
@@ -102,10 +121,20 @@ fn main() {
         let mut index_swap: Option<Vec<Item>> = None;
         for d in index.borrow().iter() {
             if d.key as u32 == keyval {
-                println!("{} {}", key.get_keyval(), d.key);
                 match d.value {
-                    ItemValue::Command(ref cmd) => {
-                        println!("{}", cmd);
+                    ItemValue::Command(ref cmd_str) => {
+                        let mut cmd = cmd_str.split_whitespace();
+                        let _ = Command::new(cmd.next().unwrap())
+                            .args(&cmd.collect::<Vec<_>>())
+                            .spawn()
+                            .map_err(|e| {
+                                MessageDialog::new(Some(&window),
+                                                   DialogFlags::empty(),
+                                                   MessageType::Error,
+                                                   ButtonsType::Ok,
+                                                   &format!("{}:\n {}", cmd_str, e))
+                                    .run();
+                            });
                         gtk::main_quit();
                     }
                     ItemValue::Index(ref new_index) => {
@@ -121,7 +150,7 @@ fn main() {
             *index.borrow_mut() = new_index;
         }
         Inhibit(false)
-    });
+    }));
 
     window.add(&tree);
 
