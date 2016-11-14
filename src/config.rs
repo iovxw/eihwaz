@@ -29,62 +29,63 @@ fn get_user_config_dir() -> String {
     }
 }
 
-fn parse_items(items_json: &Vec<serde_json::Value>) -> ConfigResult<Vec<::Item>> {
-    items_json.iter()
-        .map(|item: &serde_json::Value| {
-            let item = item.as_object().ok_or(ConfigError::InvalidConfig)?;
-            let key = item.get("key")
+fn parse_item(item: &serde_json::Value) -> ConfigResult<::Item> {
+    let item = item.as_object().ok_or(ConfigError::InvalidConfig)?;
+    let key = item.get("key")
+        .ok_or(ConfigError::InvalidConfig)?
+        .as_str()
+        .ok_or(ConfigError::InvalidConfig)?
+        .chars()
+        .next()
+        .ok_or(ConfigError::InvalidConfig)?;
+    let text = item.get("text")
+        .ok_or(ConfigError::InvalidConfig)?
+        .as_str()
+        .ok_or(ConfigError::InvalidConfig)?
+        .to_string();
+    let raw_value = item.get("value").ok_or(ConfigError::InvalidConfig)?;
+    let value = match item.get("type")
+        .ok_or(ConfigError::InvalidConfig)?
+        .as_str()
+        .ok_or(ConfigError::InvalidConfig)? {
+        "file" => {
+            ::ItemValue::File(raw_value.as_str()
                 .ok_or(ConfigError::InvalidConfig)?
-                .as_str()
+                .to_string())
+        }
+        "command" => {
+            ::ItemValue::Command(raw_value.as_str()
                 .ok_or(ConfigError::InvalidConfig)?
-                .chars()
-                .next()
-                .ok_or(ConfigError::InvalidConfig)?;
-            let text = item.get("text")
+                .to_string())
+        }
+        "application" => {
+            ::ItemValue::Command(raw_value.as_str()
                 .ok_or(ConfigError::InvalidConfig)?
-                .as_str()
-                .ok_or(ConfigError::InvalidConfig)?
-                .to_string();
-            let raw_value = item.get("value").ok_or(ConfigError::InvalidConfig)?;
-            let value = match item.get("type")
-                .ok_or(ConfigError::InvalidConfig)?
-                .as_str()
-                .ok_or(ConfigError::InvalidConfig)? {
-                "file" => {
-                    ::ItemValue::File(raw_value.as_str()
-                        .ok_or(ConfigError::InvalidConfig)?
-                        .to_string())
-                }
-                "command" => {
-                    ::ItemValue::Command(raw_value.as_str()
-                        .ok_or(ConfigError::InvalidConfig)?
-                        .to_string())
-                }
-                "application" => {
-                    ::ItemValue::Command(raw_value.as_str()
-                        .ok_or(ConfigError::InvalidConfig)?
-                        .to_string())
-                }
-                "index" => {
-                    ::ItemValue::Index(parse_items(raw_value.as_array()
-                        .ok_or(ConfigError::InvalidConfig)?)?)
-                }
-                _ => return Err(ConfigError::UnknownItemType),
-            };
-            Ok(::Item {
-                key: key,
-                text: text,
-                value: value,
-            })
-        })
+                .to_string())
+        }
+        "index" => {
+            ::ItemValue::Index(parse_items(raw_value)?)
+        }
+        _ => return Err(ConfigError::UnknownItemType),
+    };
+    Ok(::Item {
+        key: key,
+        text: text,
+        value: value,
+    })
+}
+
+fn parse_items(items: &serde_json::Value) -> ConfigResult<Vec<::Item>> {
+    let items = items.as_array().ok_or(ConfigError::InvalidConfig)?;
+    items.iter()
+        .map(parse_item)
         .collect::<ConfigResult<Vec<::Item>>>()
 }
 
 fn read_config(config_file: &Path) -> ConfigResult<Vec<::Item>> {
     let file = File::open(config_file).map_err(ConfigError::Io)?;
-    let config_json: serde_json::Value = serde_json::from_reader(file).map_err(ConfigError::Json)?;
-    let items_json = config_json.as_array().ok_or(ConfigError::InvalidConfig)?;
-    parse_items(items_json)
+    let config: serde_json::Value = serde_json::from_reader(file).map_err(ConfigError::Json)?;
+    parse_items(&config)
 }
 
 pub fn load_config() -> ConfigResult<Vec<::Item>> {
