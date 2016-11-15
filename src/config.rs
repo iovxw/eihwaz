@@ -12,6 +12,7 @@ pub enum ConfigError {
     Json(serde_json::Error),
     InvalidConfig,
     UnknownItemType,
+    DuplicateKey,
 }
 
 type ConfigResult<T> = Result<T, ConfigError>;
@@ -63,9 +64,7 @@ fn parse_item(item: &serde_json::Value) -> ConfigResult<::Item> {
                 .ok_or(ConfigError::InvalidConfig)?
                 .to_string())
         }
-        "index" => {
-            ::ItemValue::Index(parse_items(raw_value)?)
-        }
+        "index" => ::ItemValue::Index(parse_items(raw_value)?),
         _ => return Err(ConfigError::UnknownItemType),
     };
     Ok(::Item {
@@ -75,11 +74,27 @@ fn parse_item(item: &serde_json::Value) -> ConfigResult<::Item> {
     })
 }
 
+fn items_key_duplicate(items: &Vec<::Item>) -> bool {
+    let mut key_list: Vec<char> = Vec::with_capacity(items.len());
+    for item in items {
+        if key_list.contains(&item.key) {
+            return true;
+        }
+        key_list.push(item.key);
+    }
+    false
+}
+
 fn parse_items(items: &serde_json::Value) -> ConfigResult<Vec<::Item>> {
     let items = items.as_array().ok_or(ConfigError::InvalidConfig)?;
-    items.iter()
+    let items = items.iter()
         .map(parse_item)
-        .collect::<ConfigResult<Vec<::Item>>>()
+        .collect::<ConfigResult<Vec<::Item>>>()?;
+    if items_key_duplicate(&items) {
+        Err(ConfigError::DuplicateKey)
+    } else {
+        Ok(items)
+    }
 }
 
 fn read_config(config_file: &Path) -> ConfigResult<Vec<::Item>> {
